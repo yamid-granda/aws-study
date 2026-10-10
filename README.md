@@ -50,7 +50,6 @@ scripts/smoke.sh               # curl smoke test, BASE_URL-aware
 ```
 
 ### Adding a new Lambda
-
 1. Copy `src/functions/hello/` → `src/functions/<name>/`, rename handler logic (keep the handler thin, put logic in pure exported functions so Vitest can cover them).
 2. Add a `AWS::Serverless::Function` resource in `template.yaml` with `CodeUri: ./` (project root, so esbuild resolves deps), `Handler: app.handler`, `EntryPoints: [src/functions/<name>/app.ts]`, and its `Api` event.
 3. Add `events/<name>-event.json`, a colocated `app.test.ts`, an E2E spec, and a line in `scripts/smoke.sh`.
@@ -67,6 +66,13 @@ scripts/smoke.sh               # curl smoke test, BASE_URL-aware
 - k6 **only for performance tests**: `brew install k6` (macOS) — [k6 install docs](https://grafana.com/docs/k6/set-up/install-k6/)
 - Playwright browsers **only for E2E**: `npx playwright install --with-deps chromium`
 - AWS credentials **only for deploy** (not needed for any local test)
+
+> **Architecture note:** the template uses `arm64` (see `template.yaml` Globals).
+> It runs natively on Apple Silicon — fast, stable `sam local` — and deploys to
+> Graviton (cheaper). The TypeScript bundles are arch-independent, so this only
+> affects the Lambda runtime. Need `x86_64` (e.g. a Layer without arm64 builds)?
+> Change the one line back, but on Apple Silicon enable Rosetta in colima
+> (`rosetta: true`) or emulation will be slow and flaky.
 
 ## Install
 

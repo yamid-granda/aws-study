@@ -4,9 +4,13 @@ Description: aws-study - multi-Lambda TypeScript scaffold (SAM)
 
 Globals:
   Function:
-    Runtime: nodejs20.x
+    Runtime: nodejs22.x
+    # arm64 = native on Apple Silicon (fast, stable `sam local`) and
+    # Graviton in AWS (cheaper). Pure-TS bundles are arch-independent.
+    # If you need x86_64 (e.g. a Layer without arm64 builds), change this
+    # back — but expect slow/flaky emulation on Apple Silicon.
     Architectures:
-      - x86_64
+      - arm64
     MemorySize: 256
     Timeout: 10
     Environment:

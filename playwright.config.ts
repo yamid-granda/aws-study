@@ -18,8 +18,7 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   webServer: {
-    command:
-      "npm run build && sam local start-api -p 3000 --warm-containers EAGER --env-vars env.json",
+    command: "npm run local:start",
     url: "http://127.0.0.1:3000/health",
     reuseExistingServer: !process.env.CI,
     timeout: 240 * 1000,
