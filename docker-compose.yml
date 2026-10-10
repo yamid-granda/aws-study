@@ -20,6 +20,41 @@ services:
       - dynamodb-data:/home/dynamodblocal/data
     working_dir: /home/dynamodblocal
 
+  # Full AWS emulator for the current app flow (API Gateway + Lambda +
+  # DynamoDB + CloudFormation from template.yaml). Used via:
+  #   npm run local:stack:up      # start LocalStack on :4566
+  #   npm run local:stack:deploy  # sam build + deploy template to LocalStack
+  #   BASE_URL=$(npm run -s local:stack:url) npm run test:smoke
+  localstack:
+    # Pinned to the last token-free Community line: since March 2026,
+    # `localstack/localstack:latest` requires a LOCALSTACK_AUTH_TOKEN
+    # (free plan, but an account wall) and exits with code 55 without one.
+    # 4.14 runs API Gateway + Lambda (incl. nodejs22.x) + DynamoDB + S3 +
+    # CloudFormation with no account. To try `latest` instead, set the
+    # image to localstack/localstack:latest and add to `environment`:
+    #   - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN:?}
+    image: localstack/localstack:4.14
+    container_name: aws-study-localstack
+    ports:
+      - "4566:4566"
+    environment:
+      - DEBUG=0
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - DOCKER_SOCK=/var/run/docker.sock
+      - LAMBDA_EXECUTOR=docker
+      - LAMBDA_RUNTIME_ENVIRONMENT_TIMEOUT=120
+      - AWS_DEFAULT_REGION=us-east-1
+    volumes:
+      # LocalStack needs the daemon socket to spawn Lambda containers.
+      # The source path is resolved by the Docker daemon (inside the
+      # Colima VM / Docker Desktop VM), where it is always
+      # /var/run/docker.sock — even though the macOS-side socket lives
+      # at ~/.colima/default/docker.sock.
+      - /var/run/docker.sock:/var/run/docker.sock
+      - localstack-data:/var/lib/localstack
+
 volumes:
   dynamodb-data:
     name: aws-study-dynamodb-data
+  localstack-data:
+    name: aws-study-localstack-data

@@ -7,6 +7,10 @@ import { logger } from "./logger.js";
  *
  * Local: set DYNAMODB_ENDPOINT (e.g. http://host.docker.internal:8000 from
  * inside `sam local` containers, http://localhost:8000 from the host).
+ * LocalStack: leave DYNAMODB_ENDPOINT unset — LocalStack injects
+ * AWS_ENDPOINT_URL_DYNAMODB / AWS_ENDPOINT_URL into the Lambdas it runs,
+ * which resolveEndpoint() honors. Explicitly setting DYNAMODB_ENDPOINT
+ * also works.
  * Cloud: leave DYNAMODB_ENDPOINT unset → talks to real DynamoDB.
  */
 
@@ -23,6 +27,9 @@ export function getTableName(): string {
 /**
  * Resolve the DynamoDB endpoint:
  * - DYNAMODB_ENDPOINT set → use it (local dev via env.json).
+ * - AWS_ENDPOINT_URL_DYNAMODB / AWS_ENDPOINT_URL set → use it (LocalStack
+ *   injects these into Lambdas it runs, and the AWS SDK v3 also honors
+ *   them — checking explicitly keeps local + cloud behavior obvious).
  * - otherwise, running under `sam local` (AWS_SAM_LOCAL=true) → the
  *   DynamoDB Local companion on the host. SAM only guarantees *some*
  *   env.json keys reach the container (observed: custom keys like
@@ -34,6 +41,12 @@ export function getTableName(): string {
 export function resolveEndpoint(): string | undefined {
   if (process.env.DYNAMODB_ENDPOINT) {
     return process.env.DYNAMODB_ENDPOINT;
+  }
+  if (process.env.AWS_ENDPOINT_URL_DYNAMODB) {
+    return process.env.AWS_ENDPOINT_URL_DYNAMODB;
+  }
+  if (process.env.AWS_ENDPOINT_URL) {
+    return process.env.AWS_ENDPOINT_URL;
   }
   if (process.env.AWS_SAM_LOCAL) {
     return "http://host.docker.internal:8000";

@@ -18,6 +18,23 @@ describe("resolveEndpoint", () => {
     expect(resolveEndpoint()).toBe("http://host.docker.internal:8000");
   });
 
+  it("honors AWS_ENDPOINT_URL_DYNAMODB (LocalStack Lambda injection)", () => {
+    vi.stubEnv("AWS_ENDPOINT_URL_DYNAMODB", "http://localstack:4566");
+    expect(resolveEndpoint()).toBe("http://localstack:4566");
+  });
+
+  it("honors AWS_ENDPOINT_URL when the service-specific var is absent", () => {
+    vi.stubEnv("AWS_ENDPOINT_URL", "http://localstack:4566");
+    expect(resolveEndpoint()).toBe("http://localstack:4566");
+  });
+
+  it("still prefers DYNAMODB_ENDPOINT over LocalStack vars", () => {
+    vi.stubEnv("DYNAMODB_ENDPOINT", "http://custom:8000");
+    vi.stubEnv("AWS_ENDPOINT_URL_DYNAMODB", "http://localstack:4566");
+    vi.stubEnv("AWS_ENDPOINT_URL", "http://localstack:4566");
+    expect(resolveEndpoint()).toBe("http://custom:8000");
+  });
+
   it("returns undefined in real AWS (real DynamoDB)", () => {
     expect(resolveEndpoint()).toBeUndefined();
   });
