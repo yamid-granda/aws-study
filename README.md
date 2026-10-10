@@ -1,187 +1,128 @@
 # aws-study — Multi-Lambda SAM Scaffold (TypeScript)
 
-Empty, ready-to-code scaffold for **multiple AWS Lambdas** orchestrated with **SAM**, with a **local-first** testing story: unit, E2E, performance, and smoke — all runnable without deploying to AWS.
-
-## Stack
-
-| Concern | Tool |
-|---|---|
-| Compute / orchestration | AWS Lambda + SAM (`template.yaml`) |
-| Language | TypeScript + Node.js 20 |
-| Format / lint | Biome (`biome.json`) |
-| Unit tests | Vitest (`vitest.config.ts`, colocated `src/**/*.test.ts`) |
-| E2E tests | Playwright (`playwright.config.ts`, `tests/e2e/`) |
-| Performance tests | k6 (`tests/performance/`) |
-| Smoke tests | `scripts/smoke.sh` (curl, works local + cloud) |
-| Local DynamoDB | `amazon/dynamodb-local` via `docker-compose.yml` + `scripts/dynamo-local.sh` |
-
-### Extra (recommended, already wired in)
-
-| Package | Why |
-|---|---|
-| `@middy/core` | Lambda middleware (logging, JSON parsing, error handling) |
-| `zod` | Input validation at the edge (see `hello` function) |
-| `@aws-lambda-powertools/logger` | Structured JSON logging, consistent `serviceName`/`LOG_LEVEL` |
-| `lint-staged` + `husky` | Format/lint on commit so the scaffold stays clean |
-| GitHub Actions (`ci.yml`) | typecheck + Biome + Vitest + `sam build` + `sam validate` on every push |
-
-> If you outgrow this: add `@aws-lambda-powertools/metrics` + `tracer` (X-Ray), `esbuild` analyze for bundle size, and `cfn-lint` in CI.
-
-## Project structure
-
-```
-template.yaml                  # SAM: one AWS::Serverless::Function per Lambda
-samconfig.toml                 # default stack/region (dev)
-env.json                       # env vars for `sam local`
-events/                        # sample invoke payloads (sam local invoke)
-src/
-  shared/
-    logger.ts                  # Powertools logger singleton
-    response.ts                # ok()/badRequest()/serverError() helpers
-  functions/
-    health/app.ts + app.test.ts    # GET /health (liveness probe)
-    hello/app.ts + app.test.ts    # GET /hello?name= (validation example)
-    products/                     # products CRUD (DynamoDB: app.ts, validation.ts, repository.ts, app.test.ts)
-      # POST /products, GET /products, GET/PUT/DELETE /products/{id}
-  shared/
-    dynamo.ts                     # DynamoDB client: DYNAMODB_ENDPOINT set → local, unset → cloud
-tests/
-  e2e/*.e2e.spec.ts            # Playwright, hits local SAM API
-  performance/
-    smoke-test.js              # k6: 10 iterations, both endpoints
-    hello-load-test.js         # k6: ramp to 10 VUs
-    health-load-test.js        # k6: ramp to 50 VUs
-scripts/smoke.sh               # curl smoke test, BASE_URL-aware
-```
-
-### Adding a new Lambda
-1. Copy `src/functions/hello/` → `src/functions/<name>/`, rename handler logic (keep the handler thin, put logic in pure exported functions so Vitest can cover them).
-2. Add a `AWS::Serverless::Function` resource in `template.yaml` with `CodeUri: ./` (project root, so esbuild resolves deps), `Handler: app.handler`, `EntryPoints: [src/functions/<name>/app.ts]`, and its `Api` event.
-3. Add `events/<name>-event.json`, a colocated `app.test.ts`, an E2E spec, and a line in `scripts/smoke.sh`.
-4. Run `npm run build && npm run local:start` to verify locally.
+Multiple AWS Lambdas orchestrated with SAM, local-first: unit, E2E, perf, and smoke tests all run without AWS.
 
 ## Prerequisites
 
-- Node.js 20 (`nvm use` / `.nvmrc`), npm 9+
-- Docker Desktop / Engine **running** (SAM Local needs it)
-- AWS SAM CLI ≥ 1.130 (`sam --version`) — **important:** versions ≤ 1.120 bundle a Docker
-  client (API 1.35) that modern Docker servers (≥ v28, min API 1.40) reject with
-  `DockerIsNotReachableException`. Upgrade via `brew install aws-sam-cli` or the
-  [official installer](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html).
-- k6 **only for performance tests**: `brew install k6` (macOS) — [k6 install docs](https://grafana.com/docs/k6/set-up/install-k6/)
-- Playwright browsers **only for E2E**: `npx playwright install --with-deps chromium`
-- AWS credentials **only for deploy** (not needed for any local test)
+- Node.js 20 (`fnm use` / `nvm use`), npm 9+
+- Docker running (SAM Local and LocalStack need it)
+- AWS SAM CLI ≥ 1.130 (`sam --version`; ≤ 1.120 fails against modern Docker with `DockerIsNotReachableException`)
+- k6 only for perf tests · Playwright Chromium only for E2E · AWS credentials only for deploy
 
-> **Architecture note:** the template uses `arm64` (see `template.yaml` Globals).
-> It runs natively on Apple Silicon — fast, stable `sam local` — and deploys to
-> Graviton (cheaper). The TypeScript bundles are arch-independent, so this only
-> affects the Lambda runtime. Need `x86_64` (e.g. a Layer without arm64 builds)?
-> Change the one line back, but on Apple Silicon enable Rosetta in colima
-> (`rosetta: true`) or emulation will be slow and flaky.
+> `arm64` throughout (`template.yaml` Globals): native on Apple Silicon, Graviton in AWS. Need `x86_64`? Change the one line, but enable Rosetta in colima or emulation turns flaky.
 
 ## Install
 
 ```bash
-fnm use   # or `nvm use` — both read .nvmrc (fnm auto-switches on cd via --use-on-cd)
+fnm use
 npm install
 npx playwright install --with-deps chromium   # E2E only
 ```
 
-## Run locally (no AWS needed)
+## Quickstart
 
 ```bash
-npm run build              # sam build (esbuild bundles each function)
-npm run local:start        # API at http://127.0.0.1:3000 (warm containers, env.json)
-# then:
+npm run test:unit                              # no setup needed
+npm run local:dynamo:up && npm run local:dynamo:init  # DynamoDB Local on :8000
+npm run local:start                            # API at http://127.0.0.1:3000
 curl http://127.0.0.1:3000/health
-curl "http://127.0.0.1:3000/hello?name=Ada"
-```
-
-Invoke a single function without the API:
-
-```bash
-npm run local:invoke:health
-npm run local:invoke:hello
-```
-
-## DynamoDB locally (persistent) + cloud
-
-Same code, two targets — `src/shared/dynamo.ts` points at DynamoDB Local
-when `DYNAMODB_ENDPOINT` is set, at real DynamoDB when it is not.
-`template.yaml` defines the real `ProductsTable` (PAY_PER_REQUEST, PK `id`);
-`scripts/dynamo-local.sh` creates the same table locally.
-
-```bash
-npm run local:dynamo:up    # start amazon/dynamodb-local on :8000 (data persists in a named volume)
-npm run local:dynamo:init  # create aws-study-local-products (idempotent, keeps data)
-npm run local:start        # SAM API at :3000 — ProductsFunction talks to DynamoDB Local
-                           # via http://host.docker.internal:8000 (see env.json)
-
 curl -X POST http://127.0.0.1:3000/products \
   -H "Content-Type: application/json" \
   -d '{"name":"Keyboard","price":79.9,"stock":10}'
-curl http://127.0.0.1:3000/products?limit=10
 ```
 
-Only `docker-compose down -v` wipes local data; `down`/`stop` keeps it.
-E2E (`npm run test:e2e`) provisions DynamoDB automatically via
-`scripts/e2e-server.sh`. Deploy (`npm run deploy`) creates the real table —
-no code change.
+## Local dev environments
 
-> **Notes from the field (this machine):**
-> - Use `docker-compose` (hyphen, standalone v5). `docker compose` (space,
->   plugin) is not installed.
-> - `sam local` injects your **host AWS credentials** into Lambda containers,
->   overriding `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` in `env.json`.
->   Never put real secrets in `env.json`. The products Lambda is unaffected:
->   `src/shared/dynamo.ts` pins the local endpoint and only falls back to
->   `http://host.docker.internal:8000` when `AWS_SAM_LOCAL` is set (never in
->   real AWS, where the var is absent and real DynamoDB is used).
-> - Local table setup needs no AWS CLI — `scripts/dynamo-local.sh` uses the
->   repo's AWS SDK via `scripts/dynamo-local-init.mjs`.
+Two targets, same code. Pick per task:
 
-## Test locally
+| | **SAM Local** (default) | **LocalStack** |
+|---|---|---|
+| What | Lambda + API Gateway on `:3000` | Full AWS emulator on `:4566` |
+| DynamoDB | Separate `dynamodb-local` container (`:8000`) | Inside LocalStack |
+| Deploys `template.yaml`? | No — runs built code directly | Yes — real CloudFormation deploy |
+| API URL | Fixed: `http://127.0.0.1:3000` | Changes per deploy: `npm run -s local:stack:url` |
+| **Use when** | Fast inner loop, debugging a Lambda, E2E | Pre-deploy parity check (routes, IAM policies, table from template) |
+
+### SAM Local — fast inner loop
+
+```bash
+npm run local:dynamo:up     # DynamoDB Local (:8000, data persists; `down -v` wipes)
+npm run local:dynamo:init   # create aws-study-local-products (idempotent, no AWS CLI needed)
+npm run local:start         # API at :3000 (warm containers, env.json)
+npm run local:invoke:health # invoke one function without the API (also :hello, :products)
+```
+
+### LocalStack — full emulator
+
+```bash
+npm run local:stack:up      # start emulator (:4566). Empty — no API yet!
+npm run local:stack:deploy  # deploy template as stack `aws-study-localstack`
+BASE_URL=$(npm run -s local:stack:url) npm run test:smoke
+npm run local:stack:logs    # follow logs
+npm run local:stack:down    # stop (a restart wipes the deployed stack → redeploy)
+```
+
+```bash
+BASE_URL=$(npm run -s local:stack:url)
+curl "$BASE_URL/health"
+curl -X POST "$BASE_URL/products" -H "Content-Type: application/json" \
+  -d '{"name":"Keyboard","price":79.9,"stock":10}'
+curl "$BASE_URL/products?limit=10"
+```
+
+Notes: dummy `test`/`test` creds, `us-east-1`, no account — the image is pinned to `localstack/localstack:4.14` because `latest` requires a `LOCALSTACK_AUTH_TOKEN` since March 2026. Lambda code needs no endpoint config (`src/shared/dynamo.ts` honors LocalStack's injected `AWS_ENDPOINT_URL_*` vars).
+
+## Test
 
 | Level | Command | Requires |
 |---|---|---|
-| Unit (Vitest) | `npm run test:unit` · watch: `npm run test:unit:watch` · coverage: `npm run test:unit:coverage` | nothing |
-| E2E (Playwright) | `npm run test:e2e` | Docker running (Playwright auto-starts SAM via `webServer`; or run `npm run local:start` first — it reuses the existing server) |
-| Performance (k6) | `npm run test:perf:smoke` · `npm run test:perf:load` · or `k6 run tests/performance/health-load-test.js` · override target with `BASE_URL=http://127.0.0.1:3000 k6 run tests/performance/smoke-test.js` | API running (`npm run local:start`) + `k6` installed |
-| Smoke (curl) | `npm run test:smoke` · cloud: `BASE_URL=https://<api-id>.execute-api.<region>.amazonaws.com/Prod npm run test:smoke` | API running (local or deployed) |
-| All static checks | `npm run check` (Biome) · `npm run typecheck` · `npm run validate` (`sam validate --lint`) | nothing / SAM CLI |
-
-Typical local loop:
+| Unit (Vitest) | `npm run test:unit` (watch: `test:unit:watch`, coverage: `test:unit:coverage`) | nothing |
+| E2E (Playwright) | `npm run test:e2e` | Docker (auto-starts SAM + DynamoDB via `scripts/e2e-server.sh`, or reuses your `:3000`) |
+| Perf (k6) | `npm run test:perf:smoke` · `npm run test:perf:load` | API up + `k6` |
+| Smoke (curl) | `npm run test:smoke` · any target via `BASE_URL=<url> npm run test:smoke` | API up (SAM, LocalStack, or cloud) |
+| Static | `npm run check` (Biome) · `npm run typecheck` · `npm run validate` (`sam validate --lint`) | nothing / SAM CLI |
 
 ```bash
-npm run test:unit                 # fast feedback
+npm run test:unit
 npm run local:start               # terminal 1
-npm run test:e2e                  # terminal 2 (reuses :3000)
-npm run test:smoke                # terminal 2
+npm run test:e2e                  # terminal 2
 BASE_URL=http://127.0.0.1:3000 k6 run tests/performance/smoke-test.js
 ```
 
-## Format / lint
+## Project structure
 
-```bash
-npm run format        # biome format --write .
-npm run lint:fix      # biome check --write .
-npm run check         # biome check . (CI runs this)
+```
+template.yaml          # SAM: one AWS::Serverless::Function per Lambda + ProductsTable
+samconfig.toml         # cloud stack/region (dev)
+env.json               # env vars for `sam local` only (never real secrets: sam injects host AWS creds)
+events/                # sample payloads for `sam local invoke`
+src/shared/            # logger.ts (Powertools) · response.ts (ok/badRequest/serverError) · dynamo.ts (local↔cloud endpoint)
+src/functions/         # health/ · hello/ (zod validation example) · products/ (CRUD: app, validation, repository, tests)
+tests/e2e/ · tests/performance/ · scripts/smoke.sh
 ```
 
-A `pre-commit` hook (`lint-staged`) auto-formats staged files.
+Stack: Lambda + SAM · TypeScript · Biome · Vitest · Playwright · k6 · `@middy/core` + `zod` + Powertools logger · Husky + commitlint · GitHub Actions CI (`biome` → `typecheck` → `test:unit` → `sam build` → `sam validate`).
 
-### Commits
+### Adding a new Lambda
 
-[Conventional Commits](https://www.conventionalcommits.org/) are **mandatory** —
-enforced at commit time by commitlint (Husky `commit-msg` hook). Example:
-`feat(hello): support greeting by title`. See `AGENTS.md` for the full rule set.
-Never commit with `--no-verify`.
+1. Copy `src/functions/hello/` → `src/functions/<name>/` (thin handler, pure logic for Vitest).
+2. Add `AWS::Serverless::Function` in `template.yaml` (`CodeUri: ./`, `Handler: app.handler`, `EntryPoints: [...]`, `Api` event).
+3. Add `events/<name>-event.json`, colocated `app.test.ts`, E2E spec, smoke line.
+4. `npm run build && npm run local:start` to verify.
+
+## Checks & commits
+
+```bash
+npm run check && npm run typecheck   # run before finishing any change (pre-commit auto-formats)
+```
+
+[Conventional Commits](https://www.conventionalcommits.org/) are mandatory (commitlint rejects the rest): `feat(hello): support greeting by title`. Never `--no-verify`.
 
 ## Deploy to AWS (only step needing the cloud)
+
 ```bash
-npm run deploy:guided   # first time: answers saved to samconfig.toml
-npm run deploy           # subsequent deploys
-# then smoke-test the cloud:
+npm run deploy:guided   # first time (answers → samconfig.toml)
+npm run deploy          # subsequent
 BASE_URL=$(aws cloudformation describe-stacks --stack-name aws-study-dev \
   --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text) \
   npm run test:smoke
@@ -189,12 +130,9 @@ BASE_URL=$(aws cloudformation describe-stacks --stack-name aws-study-dev \
 
 ## Troubleshooting
 
-- `sam local ...` → `...requires a container runtime` (Docker/Finch not detected):
-  SAM only looks at the default socket/`DOCKER_HOST`, it ignores the `docker`
-  context. If you use **colima**, export
-  `DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"` (already in
-  `.zshrc` if scaffolded on this machine) and open a new terminal.
-- Playwright `webServer` timeout: Docker may be slow on first pull of the
-  `public.ecr.aws/sam/emulation-nodejs20.x` image — re-run; subsequent starts reuse it.
-- Port 3000 in use: stop the other `sam local start-api` (Playwright reuses an
-  existing server automatically thanks to `reuseExistingServer: true`).
+- `:3000` refused → `npm run local:start` isn't running. (LocalStack never serves `:3000`.)
+- LocalStack "no REST API found" → container restarted and dropped the stack → `npm run local:stack:deploy`.
+- `sam local` needs a runtime: with colima, export `DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"`.
+- Use `docker-compose` (hyphen, standalone v5); `docker compose` (plugin) isn't installed here.
+- Port 3000 busy → stop the other `sam local start-api` (Playwright reuses it via `reuseExistingServer: true`).
+- Playwright `webServer` timeout on first run → it's pulling `emulation-nodejs*.x`; re-run.
