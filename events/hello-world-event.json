@@ -1,0 +1,14 @@
+{
+  "httpMethod": "GET",
+  "path": "/hello",
+  "resource": "/hello",
+  "headers": {},
+  "queryStringParameters": { "name": "Ada" },
+  "body": null,
+  "isBase64Encoded": false,
+  "requestContext": {
+    "httpMethod": "GET",
+    "path": "/hello",
+    "resourcePath": "/hello"
+  }
+}

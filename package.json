@@ -1,0 +1,62 @@
+{
+  "name": "aws-study",
+  "version": "0.1.0",
+  "description": "Multi-Lambda TypeScript scaffold orchestrated with AWS SAM. Local-first testing: unit (Vitest), E2E (Playwright), performance (k6), smoke.",
+  "private": true,
+  "type": "commonjs",
+  "packageManager": "npm@9.9.3",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "sam build",
+    "build:ts": "tsc --noEmit",
+    "clean": "rm -rf .aws-sam coverage test-results playwright-report",
+    "deploy": "sam build && sam deploy",
+    "deploy:guided": "sam build && sam deploy --guided",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint": "biome lint .",
+    "lint:fix": "biome check --write .",
+    "check": "biome check .",
+    "typecheck": "tsc --noEmit",
+    "validate": "sam validate --lint",
+    "test": "npm run typecheck && npm run lint && npm run test:unit",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "test:unit:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "local:start": "sam build && sam local start-api -p 3000 --warm-containers EAGER --env-vars env.json",
+    "local:invoke:health": "sam build && sam local invoke HealthFunction -e events/health-check-event.json --env-vars env.json",
+    "local:invoke:hello": "sam build && sam local invoke HelloFunction -e events/hello-world-event.json --env-vars env.json",
+    "test:perf": "echo 'API must be running (npm run local:start). Then:' && echo '  k6 run tests/performance/smoke-test.js' && echo '  k6 run tests/performance/hello-load-test.js' && echo '  k6 run tests/performance/health-load-test.js'",
+    "test:perf:smoke": "k6 run tests/performance/smoke-test.js",
+    "test:perf:load": "k6 run tests/performance/hello-load-test.js",
+    "test:smoke": "bash scripts/smoke.sh",
+    "prepare": "husky || true"
+  },
+  "dependencies": {
+    "@aws-lambda-powertools/logger": "^2.6.0",
+    "@middy/core": "^6.0.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "@playwright/test": "^1.49.1",
+    "@types/aws-lambda": "^8.10.15",
+    "@types/node": "^20.17.0",
+    "dotenv": "^16.4.5",
+    "esbuild": "^0.28.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.11",
+    "typescript": "~5.6.3",
+    "vitest": "^3.2.4"
+  },
+  "lint-staged": {
+    "*.{ts,js,json}": ["biome check --write --no-errors-on-unmatched"]
+  }
+}

@@ -1,0 +1,76 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: aws-study - multi-Lambda TypeScript scaffold (SAM)
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Architectures:
+      - x86_64
+    MemorySize: 256
+    Timeout: 10
+    Environment:
+      Variables:
+        NODE_OPTIONS: --enable-source-maps
+        LOG_LEVEL: INFO
+        POWERTOOLS_SERVICE_NAME: aws-study
+
+Resources:
+  HealthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-health"
+      # CodeUri is the project root so the esbuild builder finds the
+      # root package.json and bundles node_modules deps correctly.
+      CodeUri: ./
+      Handler: app.handler
+      Description: Health check endpoint (GET /health)
+      Events:
+        HealthApi:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: get
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: true
+        EntryPoints:
+          - src/functions/health/app.ts
+
+  HelloFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-hello"
+      # CodeUri is the project root so the esbuild builder finds the
+      # root package.json and bundles node_modules deps correctly.
+      CodeUri: ./
+      Handler: app.handler
+      Description: Example endpoint (GET /hello)
+      Events:
+        HelloApi:
+          Type: Api
+          Properties:
+            Path: /hello
+            Method: get
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: true
+        EntryPoints:
+          - src/functions/hello/app.ts
+
+Outputs:
+  ApiUrl:
+    Description: Base URL of the API Gateway
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  HealthFunctionArn:
+    Description: Health Lambda ARN
+    Value: !GetAtt HealthFunction.Arn
+  HelloFunctionArn:
+    Description: Hello Lambda ARN
+    Value: !GetAtt HelloFunction.Arn
