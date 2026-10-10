@@ -1,0 +1,25 @@
+# Local DynamoDB (persistent) for `sam local` development.
+# Same API as cloud DynamoDB; data survives restarts via the named volume.
+# Only `docker-compose down -v` wipes it.
+#
+# NOTE: this laptop has the standalone `docker-compose` binary (v5.5.1);
+# `docker compose` (space, plugin) is NOT installed — use the hyphen form:
+#   docker-compose up -d dynamodb-local
+services:
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: aws-study-dynamodb-local
+    # The image runs as the non-root `dynamodblocal` user, but a freshly
+    # mounted named volume is root-owned → SQLite gets "unable to open
+    # database file" and every DB request hangs. Run as root (local dev only).
+    user: root
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ./data"
+    ports:
+      - "8000:8000"
+    volumes:
+      - dynamodb-data:/home/dynamodblocal/data
+    working_dir: /home/dynamodblocal
+
+volumes:
+  dynamodb-data:
+    name: aws-study-dynamodb-data

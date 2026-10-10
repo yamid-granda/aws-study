@@ -13,6 +13,7 @@ Empty, ready-to-code scaffold for **multiple AWS Lambdas** orchestrated with **S
 | E2E tests | Playwright (`playwright.config.ts`, `tests/e2e/`) |
 | Performance tests | k6 (`tests/performance/`) |
 | Smoke tests | `scripts/smoke.sh` (curl, works local + cloud) |
+| Local DynamoDB | `amazon/dynamodb-local` via `docker-compose.yml` + `scripts/dynamo-local.sh` |
 
 ### Extra (recommended, already wired in)
 
@@ -38,8 +39,12 @@ src/
     logger.ts                  # Powertools logger singleton
     response.ts                # ok()/badRequest()/serverError() helpers
   functions/
-    health/app.ts + app.test.ts   # GET /health (liveness probe)
+    health/app.ts + app.test.ts    # GET /health (liveness probe)
     hello/app.ts + app.test.ts    # GET /hello?name= (validation example)
+    products/                     # products CRUD (DynamoDB: app.ts, validation.ts, repository.ts, app.test.ts)
+      # POST /products, GET /products, GET/PUT/DELETE /products/{id}
+  shared/
+    dynamo.ts                     # DynamoDB client: DYNAMODB_ENDPOINT set → local, unset → cloud
 tests/
   e2e/*.e2e.spec.ts            # Playwright, hits local SAM API
   performance/
@@ -98,6 +103,42 @@ Invoke a single function without the API:
 npm run local:invoke:health
 npm run local:invoke:hello
 ```
+
+## DynamoDB locally (persistent) + cloud
+
+Same code, two targets — `src/shared/dynamo.ts` points at DynamoDB Local
+when `DYNAMODB_ENDPOINT` is set, at real DynamoDB when it is not.
+`template.yaml` defines the real `ProductsTable` (PAY_PER_REQUEST, PK `id`);
+`scripts/dynamo-local.sh` creates the same table locally.
+
+```bash
+npm run local:dynamo:up    # start amazon/dynamodb-local on :8000 (data persists in a named volume)
+npm run local:dynamo:init  # create aws-study-local-products (idempotent, keeps data)
+npm run local:start        # SAM API at :3000 — ProductsFunction talks to DynamoDB Local
+                           # via http://host.docker.internal:8000 (see env.json)
+
+curl -X POST http://127.0.0.1:3000/products \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Keyboard","price":79.9,"stock":10}'
+curl http://127.0.0.1:3000/products?limit=10
+```
+
+Only `docker-compose down -v` wipes local data; `down`/`stop` keeps it.
+E2E (`npm run test:e2e`) provisions DynamoDB automatically via
+`scripts/e2e-server.sh`. Deploy (`npm run deploy`) creates the real table —
+no code change.
+
+> **Notes from the field (this machine):**
+> - Use `docker-compose` (hyphen, standalone v5). `docker compose` (space,
+>   plugin) is not installed.
+> - `sam local` injects your **host AWS credentials** into Lambda containers,
+>   overriding `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` in `env.json`.
+>   Never put real secrets in `env.json`. The products Lambda is unaffected:
+>   `src/shared/dynamo.ts` pins the local endpoint and only falls back to
+>   `http://host.docker.internal:8000` when `AWS_SAM_LOCAL` is set (never in
+>   real AWS, where the var is absent and real DynamoDB is used).
+> - Local table setup needs no AWS CLI — `scripts/dynamo-local.sh` uses the
+>   repo's AWS SDK via `scripts/dynamo-local-init.mjs`.
 
 ## Test locally
 

@@ -31,6 +31,11 @@
     "local:start": "npm run build && bash scripts/with-container-runtime.sh sam local start-api -p 3000 --warm-containers EAGER --env-vars env.json",
     "local:invoke:health": "npm run build && bash scripts/with-container-runtime.sh sam local invoke HealthFunction -e events/health-check-event.json --env-vars env.json",
     "local:invoke:hello": "npm run build && bash scripts/with-container-runtime.sh sam local invoke HelloFunction -e events/hello-world-event.json --env-vars env.json",
+    "local:invoke:products": "npm run build && bash scripts/with-container-runtime.sh sam local invoke ProductsFunction -e events/products-create-event.json --env-vars env.json",
+    "local:dynamo:up": "docker-compose up -d dynamodb-local",
+    "local:dynamo:down": "docker-compose stop dynamodb-local",
+    "local:dynamo:logs": "docker-compose logs -f dynamodb-local",
+    "local:dynamo:init": "bash scripts/dynamo-local.sh",
     "test:perf": "echo 'API must be running (npm run local:start). Then:' && echo '  k6 run tests/performance/smoke-test.js' && echo '  k6 run tests/performance/hello-load-test.js' && echo '  k6 run tests/performance/health-load-test.js'",
     "test:perf:smoke": "k6 run tests/performance/smoke-test.js",
     "test:perf:load": "k6 run tests/performance/hello-load-test.js",
@@ -39,6 +44,8 @@
   },
   "dependencies": {
     "@aws-lambda-powertools/logger": "^2.6.0",
+    "@aws-sdk/client-dynamodb": "^3.1149.0",
+    "@aws-sdk/lib-dynamodb": "^3.1149.0",
     "@middy/core": "^6.0.0",
     "zod": "^3.23.8"
   },

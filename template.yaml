@@ -68,6 +68,66 @@ Resources:
         EntryPoints:
           - src/functions/hello/app.ts
 
+  ProductsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-products"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  ProductsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-products"
+      CodeUri: ./
+      Handler: app.handler
+      Description: Products CRUD backed by DynamoDB
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ProductsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProductsTable
+      Events:
+        CreateProductApi:
+          Type: Api
+          Properties:
+            Path: /products
+            Method: post
+        ListProductsApi:
+          Type: Api
+          Properties:
+            Path: /products
+            Method: get
+        GetProductApi:
+          Type: Api
+          Properties:
+            Path: /products/{id}
+            Method: get
+        UpdateProductApi:
+          Type: Api
+          Properties:
+            Path: /products/{id}
+            Method: put
+        DeleteProductApi:
+          Type: Api
+          Properties:
+            Path: /products/{id}
+            Method: delete
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: true
+        EntryPoints:
+          - src/functions/products/app.ts
+
 Outputs:
   ApiUrl:
     Description: Base URL of the API Gateway
@@ -78,3 +138,9 @@ Outputs:
   HelloFunctionArn:
     Description: Hello Lambda ARN
     Value: !GetAtt HelloFunction.Arn
+  ProductsTableName:
+    Description: DynamoDB products table name
+    Value: !Ref ProductsTable
+  ProductsFunctionArn:
+    Description: Products Lambda ARN
+    Value: !GetAtt ProductsFunction.Arn

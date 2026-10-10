@@ -23,6 +23,8 @@ fnm use                  # pick Node 20 from .nvmrc (auto-switches on cd)
 npm install
 npm run build            # sam build (esbuild). Use this, NOT bare `sam build`
 npm run local:start      # API at http://127.0.0.1:3000 (needs Docker + SAM CLI)
+npm run local:dynamo:up   # DynamoDB Local on :8000 (persistent named volume)
+npm run local:dynamo:init # create aws-study-local-products (idempotent, keeps data)
 npm run typecheck        # tsc --noEmit
 npm run check            # biome check . (lint+format, same as CI)
 npm run format           # biome format --write .
@@ -40,6 +42,11 @@ npm run validate         # sam validate --lint
 - Validate all external input at the edge with `zod` (see `hello` function).
 - Use `src/shared/response.ts` helpers (`ok`/`badRequest`/`serverError`) and
   `src/shared/logger.ts` (Powertools). Never `console.log` in handlers.
+- DynamoDB access goes through `src/shared/dynamo.ts` (`getDocClient`,
+  `getTableName`, `resolveEndpoint`): `DYNAMODB_ENDPOINT` set → local,
+  unset + `AWS_SAM_LOCAL` → host's DynamoDB Local, otherwise real DynamoDB.
+  Keep `template.yaml` table spec and `scripts/dynamo-local-init.mjs` in sync
+  (same keys, same billing mode) so local stays close to cloud.
 - Run `npm run check` and `npm run typecheck` before finishing any change.
   Pre-commit already runs `lint-staged` (Biome) via Husky.
 
