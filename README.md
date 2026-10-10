@@ -142,9 +142,11 @@ BASE_URL=$(aws cloudformation describe-stacks --stack-name aws-study-dev \
 
 ## Troubleshooting
 
-- `sam local ...` → `DockerIsNotReachableException` / `client version 1.35 is too old`:
-  upgrade SAM CLI (see Prerequisites). Your Docker server is newer than the
-  Docker client bundled in old SAM releases.
+- `sam local ...` → `...requires a container runtime` (Docker/Finch not detected):
+  SAM only looks at the default socket/`DOCKER_HOST`, it ignores the `docker`
+  context. If you use **colima**, export
+  `DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"` (already in
+  `.zshrc` if scaffolded on this machine) and open a new terminal.
 - Playwright `webServer` timeout: Docker may be slow on first pull of the
   `public.ecr.aws/sam/emulation-nodejs20.x` image — re-run; subsequent starts reuse it.
 - Port 3000 in use: stop the other `sam local start-api` (Playwright reuses an
