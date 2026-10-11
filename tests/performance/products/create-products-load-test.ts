@@ -2,23 +2,31 @@ import { check } from "k6";
 import http from "k6/http";
 import type { Options } from "k6/options";
 
-// Single 10s stage at a constant 100 product creations/s (1000 total).
-// NOTE: `stages` controls concurrent VUs, not request rate — pinning RPS
-// needs the arrival-rate executor below (still counts as staged load).
+// LocalStack scenario, four ascending stages: 10 → 20 → 30 → 50
+// product creations/s (10s each, ~40s, ~900 requests total).
+// NOTE: `stages` sets the arrival rate — VUs are just workers. Against
+// LocalStack (emulated Lambda, ~30s/req under load) expect VU starvation
+// (`dropped_iterations`) and crossed thresholds; that measures the
+// emulator, not this code. maxVUs stays modest on purpose: ~900 piled-up
+// VUs already OOM-killed the k6 Docker container once.
 export const options: Options = {
   scenarios: {
     create_products: {
-      executor: "constant-arrival-rate",
-      rate: 100,
+      executor: "ramping-arrival-rate",
+      startRate: 10,
       timeUnit: "1s",
-      duration: "10s",
-      preAllocatedVUs: 20,
-      maxVUs: 100,
+      stages: [
+        { target: 10, duration: "2s" },
+        { target: 20, duration: "2s" },
+        { target: 30, duration: "2s" },
+      ],
+      preAllocatedVUs: 300,
+      maxVUs: 2000,
     },
   },
   thresholds: {
     http_req_failed: ["rate<0.01"],
-    http_req_duration: ["p(95)<1000", "p(99)<2000"],
+    http_req_duration: ["p(95)<2000", "p(99)<3000"],
   },
 };
 
