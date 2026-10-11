@@ -22,9 +22,9 @@ services:
 
   # Full AWS emulator for the current app flow (API Gateway + Lambda +
   # DynamoDB + CloudFormation from template.yaml). Used via:
-  #   npm run local:stack:dev     # one command: start + deploy + print URLs
-  #   npm run local:stack:up      # start LocalStack on :4566
-  #   npm run local:stack:deploy  # sam build + deploy template to LocalStack
+  #   npm run dev:stack     # one command: start + deploy + print URLs
+  #   npm run stack:up      # start LocalStack on :4566
+  #   npm run stack:deploy  # sam build + deploy template to LocalStack
   localstack:
     # Pinned to the last token-free Community line: since March 2026,
     # `localstack/localstack:latest` requires a LOCALSTACK_AUTH_TOKEN
