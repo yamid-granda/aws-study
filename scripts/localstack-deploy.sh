@@ -42,17 +42,15 @@ aws --endpoint-url "$LOCALSTACK_URL" --region "$REGION" cloudformation deploy \
   --capabilities CAPABILITY_IAM \
   --no-fail-on-empty-changeset
 
-echo
-echo "Stack outputs:"
-aws --endpoint-url "$LOCALSTACK_URL" --region "$REGION" cloudformation describe-stacks \
-  --stack-name "$STACK_NAME" \
-  --query "Stacks[0].Outputs[*].[OutputKey,OutputValue]" \
-  --output table
-
+# NOTE: we intentionally do NOT dump the raw `describe-stacks` table here:
+# SAM's ApiUrl output uses a real-AWS hostname
+# (https://<api-id>.execute-api.<region>.amazonaws.com/Prod/) which does not
+# resolve locally and is not clickable. Show the LocalStack URLs instead.
 BASE_URL="$(bash scripts/localstack-url.sh)"
 echo
-echo "Local API base URL:"
-echo "  $BASE_URL"
+echo "Deployed stack $STACK_NAME to LocalStack."
+echo "Local API endpoints (click to open):"
+bash scripts/localstack-endpoints.sh "$BASE_URL"
 echo "Try:"
 echo "  curl $BASE_URL/health"
-echo "  BASE_URL=$BASE_URL npm run test:smoke"
+echo "  curl $BASE_URL/products"
