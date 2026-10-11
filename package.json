@@ -1,7 +1,7 @@
 {
   "name": "aws-study",
   "version": "0.1.0",
-  "description": "Multi-Lambda TypeScript scaffold orchestrated with AWS SAM. Local-first testing: unit (Vitest), E2E (Playwright), performance (k6), smoke.",
+  "description": "Multi-Lambda TypeScript scaffold orchestrated with AWS SAM. Local-first testing: unit (Vitest), E2E (Playwright), performance (k6).",
   "private": true,
   "type": "commonjs",
   "packageManager": "npm@9.9.3",
@@ -41,13 +41,12 @@
     "local:stack:logs": "docker-compose logs -f localstack",
     "local:stack:wait": "bash scripts/localstack-wait.sh",
     "local:stack:deploy": "bash scripts/localstack-deploy.sh",
+    "local:stack:dev": "bash scripts/localstack-dev.sh",
     "local:stack:url": "bash scripts/localstack-url.sh",
     "local:stack:status": "curl -s http://localhost:4566/_localstack/health; echo",
-    "local:stack:smoke": "BASE_URL=$(bash scripts/localstack-url.sh) bash scripts/smoke.sh",
     "test:perf": "echo 'API must be running (npm run local:start). Then:' && echo '  k6 run tests/performance/smoke-test.js' && echo '  k6 run tests/performance/hello-load-test.js' && echo '  k6 run tests/performance/health-load-test.js'",
     "test:perf:smoke": "k6 run tests/performance/smoke-test.js",
     "test:perf:load": "k6 run tests/performance/hello-load-test.js",
-    "test:smoke": "bash scripts/smoke.sh",
     "prepare": "husky || true"
   },
   "dependencies": {

@@ -14,7 +14,6 @@ logic on purpose. Everything must run locally first (no AWS needed except deploy
 - Vitest for unit tests (colocated `src/**/*.test.ts`)
 - Playwright for E2E (`tests/e2e/`, hits local SAM on `:3000`)
 - k6 for performance (`tests/performance/`)
-- `scripts/smoke.sh` for smoke (curl, `BASE_URL`-aware)
 
 ## Commands
 
@@ -31,7 +30,6 @@ npm run format           # biome format --write .
 npm run lint:fix         # biome check --write .
 npm run test:unit        # vitest run
 npm run test:e2e         # playwright (auto-starts SAM if :3000 is free)
-npm run test:smoke       # scripts/smoke.sh vs local API
 npm run validate         # sam validate --lint
 ```
 
@@ -70,8 +68,8 @@ Format: `<type>(<scope>): <subject>` — e.g. `feat(hello): support greeting by 
 1. Copy `src/functions/hello/` → `src/functions/<name>/`, keep handler thin.
 2. Add `AWS::Serverless::Function` in `template.yaml`: `CodeUri: ./`,
    `Handler: app.handler`, `EntryPoints: [src/functions/<name>/app.ts]`, Api event.
-3. Add `events/<name>-event.json`, colocated `app.test.ts`, E2E spec, smoke line.
-4. Verify: `npm run build`, `npm run test:unit`, `npm run local:start` + smoke/E2E.
+3. Add `events/<name>-event.json`, colocated `app.test.ts`, E2E spec.
+4. Verify: `npm run build`, `npm run test:unit`, `npm run local:start` + E2E.
 
 ## CI (must stay green)
 

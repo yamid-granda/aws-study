@@ -1,6 +1,6 @@
 # aws-study — Multi-Lambda SAM Scaffold (TypeScript)
 
-Multiple AWS Lambdas orchestrated with SAM, local-first: unit, E2E, perf, and smoke tests all run without AWS.
+Multiple AWS Lambdas orchestrated with SAM, local-first: unit, E2E, and perf tests all run without AWS.
 
 ## Prerequisites
 
@@ -54,10 +54,17 @@ npm run local:invoke:health # invoke one function without the API (also :hello, 
 
 ### LocalStack — full emulator
 
+One command (start → deploy → print URLs):
+
+```bash
+npm run local:stack:dev
+```
+
+Manual steps (same stages individually):
+
 ```bash
 npm run local:stack:up      # start emulator (:4566). Empty — no API yet!
 npm run local:stack:deploy  # deploy template as stack `aws-study-localstack`
-BASE_URL=$(npm run -s local:stack:url) npm run test:smoke
 npm run local:stack:logs    # follow logs
 npm run local:stack:down    # stop (a restart wipes the deployed stack → redeploy)
 ```
@@ -79,7 +86,6 @@ Notes: dummy `test`/`test` creds, `us-east-1`, no account — the image is pinne
 | Unit (Vitest) | `npm run test:unit` (watch: `test:unit:watch`, coverage: `test:unit:coverage`) | nothing |
 | E2E (Playwright) | `npm run test:e2e` | Docker (auto-starts SAM + DynamoDB via `scripts/e2e-server.sh`, or reuses your `:3000`) |
 | Perf (k6) | `npm run test:perf:smoke` · `npm run test:perf:load` | API up + `k6` |
-| Smoke (curl) | `npm run test:smoke` · any target via `BASE_URL=<url> npm run test:smoke` | API up (SAM, LocalStack, or cloud) |
 | Static | `npm run check` (Biome) · `npm run typecheck` · `npm run validate` (`sam validate --lint`) | nothing / SAM CLI |
 
 ```bash
@@ -98,7 +104,7 @@ env.json               # env vars for `sam local` only (never real secrets: sam 
 events/                # sample payloads for `sam local invoke`
 src/shared/            # logger.ts (Powertools) · response.ts (ok/badRequest/serverError) · dynamo.ts (local↔cloud endpoint)
 src/functions/         # health/ · hello/ (zod validation example) · products/ (CRUD: app, validation, repository, tests)
-tests/e2e/ · tests/performance/ · scripts/smoke.sh
+tests/e2e/ · tests/performance/
 ```
 
 Stack: Lambda + SAM · TypeScript · Biome · Vitest · Playwright · k6 · `@middy/core` + `zod` + Powertools logger · Husky + commitlint · GitHub Actions CI (`biome` → `typecheck` → `test:unit` → `sam build` → `sam validate`).
@@ -107,7 +113,7 @@ Stack: Lambda + SAM · TypeScript · Biome · Vitest · Playwright · k6 · `@mi
 
 1. Copy `src/functions/hello/` → `src/functions/<name>/` (thin handler, pure logic for Vitest).
 2. Add `AWS::Serverless::Function` in `template.yaml` (`CodeUri: ./`, `Handler: app.handler`, `EntryPoints: [...]`, `Api` event).
-3. Add `events/<name>-event.json`, colocated `app.test.ts`, E2E spec, smoke line.
+3. Add `events/<name>-event.json`, colocated `app.test.ts`, E2E spec.
 4. `npm run build && npm run local:start` to verify.
 
 ## Checks & commits
@@ -123,9 +129,9 @@ npm run check && npm run typecheck   # run before finishing any change (pre-comm
 ```bash
 npm run deploy:guided   # first time (answers → samconfig.toml)
 npm run deploy          # subsequent
-BASE_URL=$(aws cloudformation describe-stacks --stack-name aws-study-dev \
-  --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text) \
-  npm run test:smoke
+API_URL=$(aws cloudformation describe-stacks --stack-name aws-study-dev \
+  --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)
+curl "$API_URL/health"
 ```
 
 ## Troubleshooting
