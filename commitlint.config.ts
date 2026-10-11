@@ -1,4 +1,8 @@
+import type { UserConfig } from "@commitlint/types";
+
 /** Commitlint: enforce Conventional Commits (https://www.conventionalcommits.org). */
-module.exports = {
+const config: UserConfig = {
   extends: ["@commitlint/config-conventional"],
 };
+
+export default config;

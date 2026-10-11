@@ -3,6 +3,8 @@
 # ProductsTable: PAY_PER_REQUEST, HASH key `id (S)`).
 # Idempotent: skips creation if the table already exists (data is kept).
 # Needs only Node + the repo's AWS SDK (no AWS CLI, no cloud credentials).
+# The init logic is TypeScript (scripts/dynamo-local-init.ts), bundled on
+# the fly with the repo's esbuild (Node 20 can't run TS directly).
 # Usage:
 #   bash scripts/dynamo-local.sh
 #   TABLE_NAME=custom-name DYNAMODB_URL=http://localhost:8000 bash scripts/dynamo-local.sh
@@ -27,4 +29,7 @@ for i in $(seq 1 30); do
   sleep 1
 done
 
-node scripts/dynamo-local-init.mjs
+BUNDLE="$(mktemp /tmp/dynamo-local-init.XXXXXX)"
+trap 'rm -f "$BUNDLE"' EXIT
+npx esbuild scripts/dynamo-local-init.ts --bundle --platform=node --format=cjs --log-level=warning --outfile="$BUNDLE"
+node "$BUNDLE"
