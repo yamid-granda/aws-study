@@ -29,7 +29,7 @@ if [[ -z "$API_ID" || "$API_ID" == "None" ]]; then
     --output text 2>/dev/null || true)"
 fi
 if [[ -z "$API_ID" || "$API_ID" == "None" ]]; then
-  echo "ERROR: no REST API found in LocalStack. Deploy first: npm run local:stack:deploy" >&2
+  echo "ERROR: no REST API found in LocalStack. Deploy first: npm run stack:deploy" >&2
   exit 1
 fi
 

@@ -18,7 +18,7 @@ for i in $(seq 1 60); do
   fi
   if [[ "$i" -eq 60 ]]; then
     echo "ERROR: LocalStack did not come up at $LOCALSTACK_URL." >&2
-    echo "Start it first: npm run local:stack:up" >&2
+    echo "Start it first: npm run stack:up" >&2
     exit 1
   fi
   sleep 2

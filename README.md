@@ -40,10 +40,18 @@ Two targets, same code. Pick per task:
 | What | Lambda + API Gateway on `:3000` | Full AWS emulator on `:4566` |
 | DynamoDB | Separate `dynamodb-local` container (`:8000`) | Inside LocalStack |
 | Deploys `template.yaml`? | No — runs built code directly | Yes — real CloudFormation deploy |
-| API URL | Fixed: `http://127.0.0.1:3000` | Changes per deploy: `npm run -s local:stack:url` |
+| API URL | Fixed: `http://127.0.0.1:3000` | Changes per deploy: `npm run -s stack:url` |
 | **Use when** | Fast inner loop, debugging a Lambda, E2E | Pre-deploy parity check (routes, IAM policies, table from template) |
 
 ### SAM Local — fast inner loop
+
+One command (DynamoDB → init table → API at `:3000`):
+
+```bash
+npm run dev
+```
+
+Manual steps (same stages individually):
 
 ```bash
 npm run local:dynamo:up     # DynamoDB Local (:8000, data persists; `down -v` wipes)
@@ -57,20 +65,20 @@ npm run local:invoke:health # invoke one function without the API (also :hello, 
 One command (start → deploy → print URLs):
 
 ```bash
-npm run local:stack:dev
+npm run dev:stack
 ```
 
 Manual steps (same stages individually):
 
 ```bash
-npm run local:stack:up      # start emulator (:4566). Empty — no API yet!
-npm run local:stack:deploy  # deploy template as stack `aws-study-localstack`
-npm run local:stack:logs    # follow logs
-npm run local:stack:down    # stop (a restart wipes the deployed stack → redeploy)
+npm run stack:up      # start emulator (:4566). Empty — no API yet!
+npm run stack:deploy  # deploy template as stack `aws-study-localstack`
+npm run stack:logs    # follow logs
+npm run stack:down    # stop (a restart wipes the deployed stack → redeploy)
 ```
 
 ```bash
-BASE_URL=$(npm run -s local:stack:url)
+BASE_URL=$(npm run -s stack:url)
 curl "$BASE_URL/health"
 curl -X POST "$BASE_URL/products" -H "Content-Type: application/json" \
   -d '{"name":"Keyboard","price":79.9,"stock":10}'
@@ -137,7 +145,7 @@ curl "$API_URL/health"
 ## Troubleshooting
 
 - `:3000` refused → `npm run local:start` isn't running. (LocalStack never serves `:3000`.)
-- LocalStack "no REST API found" → container restarted and dropped the stack → `npm run local:stack:deploy`.
+- LocalStack "no REST API found" → container restarted and dropped the stack → `npm run stack:deploy`.
 - `sam local` needs a runtime: with colima, export `DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"`.
 - Use `docker-compose` (hyphen, standalone v5); `docker compose` (plugin) isn't installed here.
 - Port 3000 busy → stop the other `sam local start-api` (Playwright reuses it via `reuseExistingServer: true`).
