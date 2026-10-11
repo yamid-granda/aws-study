@@ -93,17 +93,32 @@ Notes: dummy `test`/`test` creds, `us-east-1`, no account — the image is pinne
 |---|---|---|
 | Unit (Vitest) | `npm run test:unit` (watch: `test:unit:watch`, coverage: `test:unit:coverage`) | nothing |
 | E2E (Playwright) | `npm run test:e2e` | Docker (auto-starts SAM + DynamoDB via `scripts/e2e-server.sh`, or reuses your `:3000`) |
-| Perf suite (k6 via Docker) | `npm run tests:perf` | Docker (auto-starts DynamoDB + SAM API via `scripts/perf-suite.sh` if `:3000` is down, or reuses it; `BASE_URL=...` to target LocalStack) |
+| Perf suite (k6 via Docker) | `npm run tests:perf` (SAM) · `npm run tests:perf:stack` (LocalStack) | Docker (both self-boot: SAM path starts DynamoDB + API if `:3000` is down; stack path starts the emulator + deploys if needed, or reuses them) |
 | Perf singles (k6 via Docker) | `npm run test:perf:products:docker` | API up + Docker (no `k6` install; image `grafana/k6:2.3.0`, override with `K6_IMAGE=...`) |
 | Perf singles (k6 global) | `npm run test:perf:products` | API up + `k6` |
 | Static | `npm run check` (Biome) · `npm run typecheck` · `npm run validate` (`sam validate --lint`) | nothing / SAM CLI |
 
 ```bash
 npm run test:unit
-npm run tests:perf                  # full k6 suite, zero setup (starts API at :3000 if needed)
+npm run tests:perf                  # full k6 suite vs SAM, zero setup (starts API at :3000 if needed)
 npm run test:e2e
-BASE_URL=$(npm run -s stack:url) npm run tests:perf  # suite against LocalStack
+npm run tests:perf:stack            # full k6 suite vs LocalStack, zero setup (starts emulator + deploys if needed)
 ```
+
+## Performance testing (k6)
+
+Load tests live in `tests/performance/*-load-test.ts` (TypeScript, runs natively on k6 ≥ v0.57 — no transpile step). Each file defines staged load (`scenarios`) plus `thresholds` (`http_req_failed`, `http_req_duration`); k6 is for load only, never E2E/smoke. Runner is Dockerized (`grafana/k6:2.3.0`, override with `K6_IMAGE=...`), so no global `k6` install is needed except for the `test:perf:*` (non-Docker) singles.
+
+```bash
+npm run tests:perf                                                # full suite vs SAM Local (:3000)
+PERF_TESTS="tests/performance/products/create-products-load-test.ts" npm run tests:perf  # one file vs SAM
+npm run test:perf:products:docker                                 # one file vs SAM, direct (API must be up)
+npm run tests:perf:stack                                          # full suite vs LocalStack (self-booting: starts emulator + deploys if needed)
+PERF_TESTS="tests/performance/products/create-products-load-test.ts" npm run tests:perf:stack  # one file vs LocalStack
+BASE_URL=$(npm run -s stack:url) npm run tests:perf               # same as tests:perf:stack, explicit
+```
+
+Targets: SAM Local is fixed at `http://127.0.0.1:3000`; LocalStack URL changes per deploy (`npm run -s stack:url`, resolved automatically by `scripts/perf-stack.sh` → `scripts/perf-suite.sh` → `scripts/k6-docker.sh`). Both suite commands self-boot and leave their infra running (a LocalStack container restart wipes the deployed stack, so `tests:perf:stack` redeploys automatically when no API is found).
 
 ## Project structure
 

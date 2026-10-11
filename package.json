@@ -47,6 +47,7 @@
     "stack:status": "curl -s http://localhost:4566/_localstack/health; echo",
     "test:perf": "echo 'Full suite (auto-starts API): npm run tests:perf' && echo 'Singles (API must be running): npm run test:perf:products:docker | npm run test:perf:products'",
     "tests:perf": "bash scripts/perf-suite.sh",
+    "tests:perf:stack": "bash scripts/perf-stack.sh",
     "test:perf:products": "k6 run tests/performance/products/create-products-load-test.ts",
     "test:perf:products:docker": "bash scripts/k6-docker.sh tests/performance/products/create-products-load-test.ts",
     "prepare": "husky || true"
