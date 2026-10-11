@@ -13,7 +13,30 @@ logic on purpose. Everything must run locally first (no AWS needed except deploy
 - Biome = formatter + linter (`biome.json`), no ESLint/Prettier
 - Vitest for unit tests (colocated `src/**/*.test.ts`)
 - Playwright for E2E (`tests/e2e/`, hits local SAM on `:3000`)
-- k6 for performance (`tests/performance/`)
+- k6 for performance/load only (`tests/performance/`)
+
+## Test boundaries — MANDATORY
+
+- The k6 suite is for performance/load tests ONLY. Never use it for E2E
+  or smoke tests.
+- E2E and smoke coverage belongs in Playwright (`tests/e2e/`).
+  Unit coverage belongs in Vitest (colocated `src/**/*.test.ts`).
+- Do not create `*smoke*` files, single-iteration checks, or
+  status-only assertions under `tests/performance/`. Every k6 script
+  must define staged load (`stages`/`scenarios`) plus performance
+  `thresholds` (`http_req_duration`, `http_req_failed`).
+
+## Language — MANDATORY
+
+- Everything is TypeScript. Plain JavaScript (`.js`/`.mjs`/`.cjs`)
+  source files are NOT allowed — k6 scripts included (k6 ≥ v0.57 runs
+  `.ts` natively via type-stripping; this repo pins `grafana/k6:2.3.0`).
+- The Node-runtime helper (`scripts/dynamo-local-init.ts`) is bundled
+  on the fly with the repo's esbuild because Node 20 cannot run TS
+  directly — see `scripts/dynamo-local.sh`. Do not reintroduce a `.mjs`.
+- `commitlint.config.ts` loads via cosmiconfig's TypeScript loader.
+- Keep `tsconfig.json` `include` in sync when adding new TS locations
+  so `npm run typecheck` keeps covering every file.
 
 ## Commands
 
@@ -30,6 +53,7 @@ npm run format           # biome format --write .
 npm run lint:fix         # biome check --write .
 npm run test:unit        # vitest run
 npm run test:e2e         # playwright (auto-starts SAM if :3000 is free)
+npm run tests:perf       # full k6 suite via Docker (auto-starts DynamoDB + SAM if :3000 is down)
 npm run validate         # sam validate --lint
 ```
 
