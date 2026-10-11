@@ -7,7 +7,7 @@ Multiple AWS Lambdas orchestrated with SAM, local-first: unit, E2E, and perf tes
 - Node.js 20 (`fnm use` / `nvm use`), npm 9+
 - Docker running (SAM Local and LocalStack need it)
 - AWS SAM CLI ≥ 1.130 (`sam --version`; ≤ 1.120 fails against modern Docker with `DockerIsNotReachableException`)
-- k6 only for perf tests · Playwright Chromium only for E2E · AWS credentials only for deploy
+- k6 via Docker for perf tests (no install: `npm run test:perf:products:docker`) or global `k6` · Playwright Chromium only for E2E · AWS credentials only for deploy
 
 > `arm64` throughout (`template.yaml` Globals): native on Apple Silicon, Graviton in AWS. Need `x86_64`? Change the one line, but enable Rosetta in colima or emulation turns flaky.
 
@@ -93,14 +93,16 @@ Notes: dummy `test`/`test` creds, `us-east-1`, no account — the image is pinne
 |---|---|---|
 | Unit (Vitest) | `npm run test:unit` (watch: `test:unit:watch`, coverage: `test:unit:coverage`) | nothing |
 | E2E (Playwright) | `npm run test:e2e` | Docker (auto-starts SAM + DynamoDB via `scripts/e2e-server.sh`, or reuses your `:3000`) |
-| Perf (k6) | `npm run test:perf:smoke` · `npm run test:perf:load` | API up + `k6` |
+| Perf suite (k6 via Docker) | `npm run tests:perf` | Docker (auto-starts DynamoDB + SAM API via `scripts/perf-suite.sh` if `:3000` is down, or reuses it; `BASE_URL=...` to target LocalStack) |
+| Perf singles (k6 via Docker) | `npm run test:perf:products:docker` | API up + Docker (no `k6` install; image `grafana/k6:2.3.0`, override with `K6_IMAGE=...`) |
+| Perf singles (k6 global) | `npm run test:perf:products` | API up + `k6` |
 | Static | `npm run check` (Biome) · `npm run typecheck` · `npm run validate` (`sam validate --lint`) | nothing / SAM CLI |
 
 ```bash
 npm run test:unit
-npm run local:start               # terminal 1
-npm run test:e2e                  # terminal 2
-BASE_URL=http://127.0.0.1:3000 k6 run tests/performance/smoke-test.js
+npm run tests:perf                  # full k6 suite, zero setup (starts API at :3000 if needed)
+npm run test:e2e
+BASE_URL=$(npm run -s stack:url) npm run tests:perf  # suite against LocalStack
 ```
 
 ## Project structure
