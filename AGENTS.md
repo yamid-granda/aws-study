@@ -12,7 +12,7 @@ logic on purpose. Everything must run locally first (no AWS needed except deploy
 - AWS Lambda + SAM (`template.yaml`), Node.js 20, TypeScript strict
 - Biome = formatter + linter (`biome.json`), no ESLint/Prettier
 - Vitest for unit tests (colocated `src/**/*.test.ts`)
-- Playwright for E2E (`tests/e2e/`, hits local SAM on `:3000`)
+- Playwright for E2E (`tests/e2e/`, hits LocalStack)
 - k6 for performance/load only (`tests/performance/`)
 
 ## Test boundaries — MANDATORY
@@ -31,9 +31,6 @@ logic on purpose. Everything must run locally first (no AWS needed except deploy
 - Everything is TypeScript. Plain JavaScript (`.js`/`.mjs`/`.cjs`)
   source files are NOT allowed — k6 scripts included (k6 ≥ v0.57 runs
   `.ts` natively via type-stripping; this repo pins `grafana/k6:2.3.0`).
-- The Node-runtime helper (`scripts/dynamo-local-init.ts`) is bundled
-  on the fly with the repo's esbuild because Node 20 cannot run TS
-  directly — see `scripts/dynamo-local.sh`. Do not reintroduce a `.mjs`.
 - `commitlint.config.ts` loads via cosmiconfig's TypeScript loader.
 - Keep `tsconfig.json` `include` in sync when adding new TS locations
   so `npm run typecheck` keeps covering every file.
@@ -44,16 +41,17 @@ logic on purpose. Everything must run locally first (no AWS needed except deploy
 fnm use                  # pick Node 20 from .nvmrc (auto-switches on cd)
 npm install
 npm run build            # sam build (esbuild). Use this, NOT bare `sam build`
-npm run local:start      # API at http://127.0.0.1:3000 (needs Docker + SAM CLI)
-npm run local:dynamo:up   # DynamoDB Local on :8000 (persistent named volume)
-npm run local:dynamo:init # create aws-study-local-products (idempotent, keeps data)
+npm run dev:stack        # LocalStack up + stack deployed + clickable URLs
+npm run stack:up         # start the emulator (:4566) only
+npm run stack:deploy     # deploy template.yaml to LocalStack
+npm run stack:url        # print the deployed API base URL
 npm run typecheck        # tsc --noEmit
 npm run check            # biome check . (lint+format, same as CI)
 npm run format           # biome format --write .
 npm run lint:fix         # biome check --write .
 npm run test:unit        # vitest run
-npm run test:e2e         # playwright (auto-starts SAM if :3000 is free)
-npm run tests:perf       # full k6 suite via Docker (auto-starts DynamoDB + SAM if :3000 is down)
+npm run test:e2e         # playwright (auto-boots LocalStack + deploys if needed)
+npm run tests:perf       # full k6 suite via Docker (auto-boots LocalStack + deploys if needed)
 npm run validate         # sam validate --lint
 ```
 
@@ -65,10 +63,11 @@ npm run validate         # sam validate --lint
 - Use `src/shared/response.ts` helpers (`ok`/`badRequest`/`serverError`) and
   `src/shared/logger.ts` (Powertools). Never `console.log` in handlers.
 - DynamoDB access goes through `src/shared/dynamo.ts` (`getDocClient`,
-  `getTableName`, `resolveEndpoint`): `DYNAMODB_ENDPOINT` set → local,
-  unset + `AWS_SAM_LOCAL` → host's DynamoDB Local, otherwise real DynamoDB.
-  Keep `template.yaml` table spec and `scripts/dynamo-local-init.mjs` in sync
-  (same keys, same billing mode) so local stays close to cloud.
+  `getTableName`, `resolveEndpoint`): `DYNAMODB_ENDPOINT` set → explicit
+  override, `AWS_ENDPOINT_URL_DYNAMODB` / `AWS_ENDPOINT_URL` (injected by
+  LocalStack into the Lambdas it runs) → LocalStack, otherwise real
+  DynamoDB. The table itself always comes from `template.yaml` — LocalStack
+  creates it via CloudFormation, so local and cloud stay identical.
 - Run `npm run check` and `npm run typecheck` before finishing any change.
   Pre-commit already runs `lint-staged` (Biome) via Husky.
 
@@ -92,8 +91,8 @@ Format: `<type>(<scope>): <subject>` — e.g. `feat(hello): support greeting by 
 1. Copy `src/functions/hello/` → `src/functions/<name>/`, keep handler thin.
 2. Add `AWS::Serverless::Function` in `template.yaml`: `CodeUri: ./`,
    `Handler: app.handler`, `EntryPoints: [src/functions/<name>/app.ts]`, Api event.
-3. Add `events/<name>-event.json`, colocated `app.test.ts`, E2E spec.
-4. Verify: `npm run build`, `npm run test:unit`, `npm run local:start` + E2E.
+3. Add a colocated `app.test.ts` and an E2E spec in `tests/e2e/`.
+4. Verify: `npm run build`, `npm run test:unit`, `npm run dev:stack` + E2E.
 
 ## CI (must stay green)
 

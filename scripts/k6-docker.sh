@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 # Run k6 via Docker so no global k6 install is needed.
 # Usage: bash scripts/k6-docker.sh tests/performance/products/create-products-load-test.ts [extra k6 args...]
-# Env: BASE_URL (default http://127.0.0.1:3000 on the host)
+# Env: BASE_URL (default: resolved from the LocalStack deployment)
 #      K6_IMAGE (default grafana/k6:2.3.0)
 set -euo pipefail
 
 TEST_FILE="${1:?Usage: bash scripts/k6-docker.sh <test-file> [k6 args...]}"
 shift || true
 
-BASE_URL="${BASE_URL:-http://127.0.0.1:3000}"
+if [[ -z "${BASE_URL:-}" ]]; then
+  BASE_URL="$(bash scripts/localstack-url.sh)"
+fi
 K6_IMAGE="${K6_IMAGE:-grafana/k6:2.3.0}"
 
 # Inside the container localhost/127.0.0.1 is the container itself,

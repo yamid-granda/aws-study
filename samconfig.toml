@@ -14,11 +14,3 @@ parallel = true
 
 [default.validate.parameters]
 lint = true
-
-[default.local_start_api.parameters]
-warm_containers = "EAGER"
-port = 3000
-env_vars = "env.json"
-
-[default.local_invoke.parameters]
-env_vars = "env.json"
