@@ -5,11 +5,9 @@ import { logger } from "./logger.js";
 /**
  * Shared DynamoDB client factory — same code path for local + cloud.
  *
- * Local: set DYNAMODB_ENDPOINT (e.g. http://host.docker.internal:8000 from
- * inside `sam local` containers, http://localhost:8000 from the host).
  * LocalStack: leave DYNAMODB_ENDPOINT unset — LocalStack injects
  * AWS_ENDPOINT_URL_DYNAMODB / AWS_ENDPOINT_URL into the Lambdas it runs,
- * which resolveEndpoint() honors. Explicitly setting DYNAMODB_ENDPOINT
+ * which resolveEndpoint() honors. Setting DYNAMODB_ENDPOINT explicitly
  * also works.
  * Cloud: leave DYNAMODB_ENDPOINT unset → talks to real DynamoDB.
  */
@@ -26,16 +24,10 @@ export function getTableName(): string {
 
 /**
  * Resolve the DynamoDB endpoint:
- * - DYNAMODB_ENDPOINT set → use it (local dev via env.json).
+ * - DYNAMODB_ENDPOINT set → use it (explicit override).
  * - AWS_ENDPOINT_URL_DYNAMODB / AWS_ENDPOINT_URL set → use it (LocalStack
- *   injects these into Lambdas it runs, and the AWS SDK v3 also honors
+ *   injects these into the Lambdas it runs, and the AWS SDK v3 also honors
  *   them — checking explicitly keeps local + cloud behavior obvious).
- * - otherwise, running under `sam local` (AWS_SAM_LOCAL=true) → the
- *   DynamoDB Local companion on the host. SAM only guarantees *some*
- *   env.json keys reach the container (observed: custom keys like
- *   TABLE_NAME arrive, AWS_* keys are overridden with host credentials,
- *   and keys can occasionally go missing), so this fallback keeps local
- *   development working regardless.
  * - otherwise (real Lambda) → undefined = real DynamoDB.
  */
 export function resolveEndpoint(): string | undefined {
@@ -48,9 +40,6 @@ export function resolveEndpoint(): string | undefined {
   if (process.env.AWS_ENDPOINT_URL) {
     return process.env.AWS_ENDPOINT_URL;
   }
-  if (process.env.AWS_SAM_LOCAL) {
-    return "http://host.docker.internal:8000";
-  }
   return undefined;
 }
 
@@ -60,7 +49,7 @@ export function getDocClient(): DynamoDBDocumentClient {
   }
   const endpoint = resolveEndpoint();
   if (endpoint) {
-    logger.info("using DynamoDB Local", { endpoint });
+    logger.info("using custom DynamoDB endpoint", { endpoint });
   }
   const client = new DynamoDBClient({
     region: process.env.AWS_REGION ?? "us-east-1",

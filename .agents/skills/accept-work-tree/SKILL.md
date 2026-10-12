@@ -47,7 +47,7 @@ Report the resolved `$WT`, `$BRANCH`, and `$MAIN_WT` before changing anything.
 ## Phase 1 — Commit and push the branch
 
 Follow `.agents/skills/commit-and-push/SKILL.md`: review the full working tree
-across `src/functions/`, `src/shared/`, `template.yaml`, `events/`, `tests/`,
+across `src/functions/`, `src/shared/`, `template.yaml`, `tests/`,
 and `scripts/`, stage specific paths, split unrelated changes into logical
 commits, use Conventional Commit messages.
 

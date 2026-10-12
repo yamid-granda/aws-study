@@ -9,13 +9,7 @@ afterEach(() => {
 describe("resolveEndpoint", () => {
   it("prefers DYNAMODB_ENDPOINT when set", () => {
     vi.stubEnv("DYNAMODB_ENDPOINT", "http://custom:8000");
-    vi.stubEnv("AWS_SAM_LOCAL", "true");
     expect(resolveEndpoint()).toBe("http://custom:8000");
-  });
-
-  it("falls back to the host's DynamoDB Local under sam local", () => {
-    vi.stubEnv("AWS_SAM_LOCAL", "true");
-    expect(resolveEndpoint()).toBe("http://host.docker.internal:8000");
   });
 
   it("honors AWS_ENDPOINT_URL_DYNAMODB (LocalStack Lambda injection)", () => {

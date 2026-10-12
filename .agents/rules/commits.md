@@ -22,6 +22,6 @@ This is enforced repo-wide by a `commit-msg` git hook (`.husky/commit-msg`)
 running commitlint against `commitlint.config.js`, which extends
 `@commitlint/config-conventional`. The hook runs once per commit at the repo
 root, so it covers commits touching `src/functions/<name>`, `src/shared/`,
-`template.yaml`, `events/`, `tests/`, or `scripts/` — a non-conforming message
+`template.yaml`, `tests/`, or `scripts/` — a non-conforming message
 is rejected before the commit is created. Run `npm install` after cloning so
 husky installs the hook.

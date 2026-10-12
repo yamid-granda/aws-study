@@ -6,7 +6,7 @@ description: Commit the repository's pending changes and push them to the curren
 Only use this workflow after the user explicitly asks to commit and push, or
 invokes the corresponding command (`/cc-commit-and-push`). Review the full
 working tree, including staged and unstaged changes, across `src/functions/`,
-`src/shared/`, `template.yaml`, `events/`, `tests/`, and `scripts/`.
+`src/shared/`, `template.yaml`, `tests/`, and `scripts/`.
 Split unrelated changes into logical commits when appropriate.
 
 Use explicit file paths when staging, follow `.agents/rules/commits.md`, and

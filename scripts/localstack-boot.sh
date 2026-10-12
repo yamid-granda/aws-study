@@ -1,23 +1,27 @@
 #!/usr/bin/env bash
-# Run the k6 performance suite against LocalStack (full AWS emulator).
-# Self-booting: ensures the emulator is up (reuse-or-start, same contract
-# as localstack-dev.sh) and deploys the stack when no REST API is found
-# (a container restart wipes the deployment), then delegates to
-# scripts/perf-suite.sh (which skips SAM boot for non-local BASE_URL and
-# runs straight at it). LocalStack is left running afterwards.
+# Make LocalStack ready to serve: Docker up -> emulator up -> stack deployed.
+# The single source of truth for booting the local AWS emulator; used by
+# dev:stack, test:e2e and tests:perf so none of them re-implement the
+# Docker/container/deploy dance.
+#
+# Fully idempotent:
+# - Docker daemon unreachable -> starts colima (or Docker Desktop).
+# - Container running / stopped / missing -> reuse / start / create.
+# - Stack already has a REST API -> left alone; otherwise deployed
+#   (a LocalStack restart wipes the deployed stack).
 #
 # Usage:
-#   npm run tests:perf:stack
-#   PERF_TESTS="tests/performance/products/create-products-load-test.ts" npm run tests:perf:stack
+#   bash scripts/localstack-boot.sh
+#   LOCALSTACK_URL=http://localhost:4566 bash scripts/localstack-boot.sh
 #
-# Env:
-#   PERF_TESTS (forwarded to scripts/perf-suite.sh; default all *-load-test.ts)
-#   K6_IMAGE   (forwarded to scripts/k6-docker.sh)
-#   LOCALSTACK_URL (default http://localhost:4566; forwarded to localstack-*.sh)
+# Leaves LocalStack running on exit. Resolve the API URL afterwards with
+# scripts/localstack-url.sh.
 set -euo pipefail
 
 LOCALSTACK_URL="${LOCALSTACK_URL:-http://localhost:4566}"
 export LOCALSTACK_URL
+
+CONTAINER_NAME="aws-study-localstack"
 
 # 0. Docker must answer. If the daemon is down, boot the runtime automatically:
 # colima first (this repo's default), Docker Desktop on macOS as fallback.
@@ -64,7 +68,6 @@ ensure_docker() {
 ensure_docker
 
 # 1. Emulator up? Reuse it running, start it stopped, create it when missing.
-CONTAINER_NAME="aws-study-localstack"
 if [ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null || echo "missing")" = "true" ]; then
   echo "LocalStack already running ($CONTAINER_NAME) — reusing it."
 elif docker inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
@@ -72,11 +75,11 @@ elif docker inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
   docker start "$CONTAINER_NAME" >/dev/null
 else
   echo "Starting LocalStack emulator ..."
-  # `docker-compose up` fails with a name conflict when the shared
-  # container was created by another checkout — reuse it instead (fast path).
+  # `docker-compose up` fails with a name conflict when the shared container
+  # was created by another checkout — reuse it instead of failing.
   if ! docker-compose up -d localstack; then
-    echo "Compose up failed, reusing existing aws-study-localstack container ..."
-    docker start aws-study-localstack >/dev/null 2>&1 || true
+    echo "Compose up failed, reusing existing $CONTAINER_NAME container ..."
+    docker start "$CONTAINER_NAME" >/dev/null 2>&1 || true
   fi
 fi
 
@@ -88,7 +91,5 @@ if ! BASE_URL="$(bash scripts/localstack-url.sh 2>/dev/null)"; then
   bash scripts/localstack-deploy.sh
   BASE_URL="$(bash scripts/localstack-url.sh)"
 fi
-export BASE_URL
 
-echo "Targeting LocalStack API at $BASE_URL"
-exec bash scripts/perf-suite.sh
+echo "LocalStack ready — API at $BASE_URL"

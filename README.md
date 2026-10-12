@@ -1,13 +1,15 @@
 # aws-study — Multi-Lambda SAM Scaffold (TypeScript)
 
-Multiple AWS Lambdas orchestrated with SAM, local-first: unit, E2E, and perf tests all run without AWS.
+Multiple AWS Lambdas orchestrated with SAM. Every test runs locally against
+[LocalStack](https://localstack.cloud) — no AWS account needed until deploy.
 
 ## Prerequisites
 
 - Node.js 20 (`fnm use` / `nvm use`), npm 9+
-- Docker running (SAM Local and LocalStack need it)
-- AWS SAM CLI ≥ 1.130 (`sam --version`; ≤ 1.120 fails against modern Docker with `DockerIsNotReachableException`)
-- k6 via Docker for perf tests (no install: `npm run test:perf:products:docker`) or global `k6` · Playwright Chromium only for E2E · AWS credentials only for deploy
+- Docker running (LocalStack needs it)
+- AWS SAM CLI ≥ 1.130 (`sam --version`; ≤ 1.120 fails against modern Docker with `DockerIsNotReachableException`) — used for `build` / `deploy` / `validate`
+- AWS CLI (deploys the packaged template to LocalStack)
+- k6 via Docker for perf tests (no install needed) or global `k6` · Playwright Chromium only for E2E · AWS credentials only for deploy
 
 > `arm64` throughout (`template.yaml` Globals): native on Apple Silicon, Graviton in AWS. Need `x86_64`? Change the one line, but enable Rosetta in colima or emulation turns flaky.
 
@@ -22,47 +24,27 @@ npx playwright install --with-deps chromium   # E2E only
 ## Quickstart
 
 ```bash
-npm run test:unit                              # no setup needed
-npm run local:dynamo:up && npm run local:dynamo:init  # DynamoDB Local on :8000
-npm run local:start                            # API at http://127.0.0.1:3000
-curl http://127.0.0.1:3000/health
-curl -X POST http://127.0.0.1:3000/products \
+npm run test:unit     # no setup needed
+npm run dev:stack     # LocalStack up + stack deployed + clickable URLs
+```
+
+```bash
+BASE_URL=$(npm run -s stack:url)
+curl "$BASE_URL/health"
+curl -X POST "$BASE_URL/products" \
   -H "Content-Type: application/json" \
   -d '{"name":"Keyboard","price":79.9,"stock":10}'
+curl "$BASE_URL/products?limit=10"
 ```
 
-## Local dev environments
+## Local dev environment
 
-Two targets, same code. Pick per task:
+LocalStack is the only local environment: a full AWS emulator (API Gateway +
+Lambda + DynamoDB + S3 + CloudFormation) on `:4566`. The app is deployed there
+as a real CloudFormation stack from `template.yaml`, so routes, IAM policies
+and the products table all match what AWS will see.
 
-| | **SAM Local** (default) | **LocalStack** |
-|---|---|---|
-| What | Lambda + API Gateway on `:3000` | Full AWS emulator on `:4566` |
-| DynamoDB | Separate `dynamodb-local` container (`:8000`) | Inside LocalStack |
-| Deploys `template.yaml`? | No — runs built code directly | Yes — real CloudFormation deploy |
-| API URL | Fixed: `http://127.0.0.1:3000` | Changes per deploy: `npm run -s stack:url` |
-| **Use when** | Fast inner loop, debugging a Lambda, E2E | Pre-deploy parity check (routes, IAM policies, table from template) |
-
-### SAM Local — fast inner loop
-
-One command (DynamoDB → init table → API at `:3000`):
-
-```bash
-npm run dev
-```
-
-Manual steps (same stages individually):
-
-```bash
-npm run local:dynamo:up     # DynamoDB Local (:8000, data persists; `down -v` wipes)
-npm run local:dynamo:init   # create aws-study-local-products (idempotent, no AWS CLI needed)
-npm run local:start         # API at :3000 (warm containers, env.json)
-npm run local:invoke:health # invoke one function without the API (also :hello, :products)
-```
-
-### LocalStack — full emulator
-
-One command (start → deploy → print URLs):
+One command (start → deploy → print URLs → follow logs):
 
 ```bash
 npm run dev:stack
@@ -77,32 +59,23 @@ npm run stack:logs    # follow logs
 npm run stack:down    # stop (a restart wipes the deployed stack → redeploy)
 ```
 
-```bash
-BASE_URL=$(npm run -s stack:url)
-curl "$BASE_URL/health"
-curl -X POST "$BASE_URL/products" -H "Content-Type: application/json" \
-  -d '{"name":"Keyboard","price":79.9,"stock":10}'
-curl "$BASE_URL/products?limit=10"
-```
-
-Notes: dummy `test`/`test` creds, `us-east-1`, no account — the image is pinned to `localstack/localstack:4.14` because `latest` requires a `LOCALSTACK_AUTH_TOKEN` since March 2026. Lambda code needs no endpoint config (`src/shared/dynamo.ts` honors LocalStack's injected `AWS_ENDPOINT_URL_*` vars).
+Notes: dummy `test`/`test` creds, `us-east-1`, no account — the image is pinned to `localstack/localstack:4.14` because `latest` requires a `LOCALSTACK_AUTH_TOKEN` since March 2026. Lambda code needs no endpoint config (`src/shared/dynamo.ts` honors LocalStack's injected `AWS_ENDPOINT_URL_*` vars). The API URL changes per deploy (`/restapis/<apiId>/Prod/_user_request_`) — always resolve it with `npm run -s stack:url`.
 
 ## Test
 
 | Level | Command | Requires |
 |---|---|---|
 | Unit (Vitest) | `npm run test:unit` (watch: `test:unit:watch`, coverage: `test:unit:coverage`) | nothing |
-| E2E (Playwright) | `npm run test:e2e` | Docker (auto-starts SAM + DynamoDB via `scripts/e2e-server.sh`, or reuses your `:3000`) |
-| Perf suite (k6 via Docker) | `npm run tests:perf` (SAM) · `npm run tests:perf:stack` (LocalStack) | Docker (both self-boot: SAM path starts DynamoDB + API if `:3000` is down; stack path starts the emulator + deploys if needed, or reuses them) |
-| Perf singles (k6 via Docker) | `npm run test:perf:products:docker` | API up + Docker (no `k6` install; image `grafana/k6:2.3.0`, override with `K6_IMAGE=...`) |
-| Perf singles (k6 global) | `npm run test:perf:products` | API up + `k6` |
+| E2E (Playwright) | `npm run test:e2e` (`--ui`, `--headed` variants) | Docker (boots LocalStack + deploys via `scripts/e2e-stack.sh`, or reuses a running stack) |
+| Perf suite (k6 via Docker) | `npm run tests:perf` | Docker (self-boots LocalStack + deploys if needed) |
+| Perf singles (k6 via Docker) | `npm run test:perf:products:docker` | LocalStack deployed (image `grafana/k6:2.3.0`, override with `K6_IMAGE=...`) |
+| Perf singles (k6 global) | `npm run test:perf:products` | `BASE_URL` set + `k6` |
 | Static | `npm run check` (Biome) · `npm run typecheck` · `npm run validate` (`sam validate --lint`) | nothing / SAM CLI |
 
 ```bash
 npm run test:unit
-npm run tests:perf                  # full k6 suite vs SAM, zero setup (starts API at :3000 if needed)
-npm run test:e2e
-npm run tests:perf:stack            # full k6 suite vs LocalStack, zero setup (starts emulator + deploys if needed)
+npm run test:e2e      # boots LocalStack + deploys if needed, zero setup
+npm run tests:perf    # boots LocalStack + deploys if needed, zero setup
 ```
 
 ## Performance testing (k6)
@@ -110,25 +83,23 @@ npm run tests:perf:stack            # full k6 suite vs LocalStack, zero setup (s
 Load tests live in `tests/performance/*-load-test.ts` (TypeScript, runs natively on k6 ≥ v0.57 — no transpile step). Each file defines staged load (`scenarios`) plus `thresholds` (`http_req_failed`, `http_req_duration`); k6 is for load only, never E2E/smoke. Runner is Dockerized (`grafana/k6:2.3.0`, override with `K6_IMAGE=...`), so no global `k6` install is needed except for the `test:perf:*` (non-Docker) singles.
 
 ```bash
-npm run tests:perf                                                # full suite vs SAM Local (:3000)
-PERF_TESTS="tests/performance/products/create-products-load-test.ts" npm run tests:perf  # one file vs SAM
-npm run test:perf:products:docker                                 # one file vs SAM, direct (API must be up)
-npm run tests:perf:stack                                          # full suite vs LocalStack (self-booting: starts emulator + deploys if needed)
-PERF_TESTS="tests/performance/products/create-products-load-test.ts" npm run tests:perf:stack  # one file vs LocalStack
-BASE_URL=$(npm run -s stack:url) npm run tests:perf               # same as tests:perf:stack, explicit
+npm run tests:perf                                               # full suite (self-booting)
+PERF_TESTS="tests/performance/products/create-products-load-test.ts" npm run tests:perf  # one file
+npm run test:perf:products:docker                                # one file, direct (stack deployed)
+BASE_URL=$(npm run -s stack:url) npm run tests:perf             # target a running stack explicitly
 ```
 
-Targets: SAM Local is fixed at `http://127.0.0.1:3000`; LocalStack URL changes per deploy (`npm run -s stack:url`, resolved automatically by `scripts/perf-stack.sh` → `scripts/perf-suite.sh` → `scripts/k6-docker.sh`). Both suite commands self-boot and leave their infra running (a LocalStack container restart wipes the deployed stack, so `tests:perf:stack` redeploys automatically when no API is found).
+Target URL: resolved from the LocalStack deployment (`scripts/localstack-boot.sh` → `scripts/localstack-url.sh` → `scripts/k6-docker.sh`). `BASE_URL` short-circuits the boot and runs against whatever API you point at. LocalStack is left running afterwards; a container restart wipes the deployed stack, so the suite redeploys automatically when no API is found.
 
 ## Project structure
 
 ```
 template.yaml          # SAM: one AWS::Serverless::Function per Lambda + ProductsTable
 samconfig.toml         # cloud stack/region (dev)
-env.json               # env vars for `sam local` only (never real secrets: sam injects host AWS creds)
-events/                # sample payloads for `sam local invoke`
-src/shared/            # logger.ts (Powertools) · response.ts (ok/badRequest/serverError) · dynamo.ts (local↔cloud endpoint)
+docker-compose.yml     # LocalStack
+src/shared/            # logger.ts (Powertools) · response.ts (ok/badRequest/serverError) · dynamo.ts (endpoint resolution)
 src/functions/         # health/ · hello/ (zod validation example) · products/ (CRUD: app, validation, repository, tests)
+scripts/               # localstack-*.sh (boot/deploy/url/wait) · e2e-stack.sh · perf-suite.sh · k6-docker.sh
 tests/e2e/ · tests/performance/
 ```
 
@@ -136,10 +107,10 @@ Stack: Lambda + SAM · TypeScript · Biome · Vitest · Playwright · k6 · `@mi
 
 ### Adding a new Lambda
 
-1. Copy `src/functions/hello/` → `src/functions/<name>/` (thin handler, pure logic for Vitest).
+1. Copy `src/functions/hello/` → `src/functions/<name>/`, keep handler thin.
 2. Add `AWS::Serverless::Function` in `template.yaml` (`CodeUri: ./`, `Handler: app.handler`, `EntryPoints: [...]`, `Api` event).
-3. Add `events/<name>-event.json`, colocated `app.test.ts`, E2E spec.
-4. `npm run build && npm run local:start` to verify.
+3. Add a colocated `app.test.ts` and an E2E spec in `tests/e2e/`.
+4. `npm run dev:stack` to verify (redeploys the template).
 
 ## Checks & commits
 
@@ -161,9 +132,9 @@ curl "$API_URL/health"
 
 ## Troubleshooting
 
-- `:3000` refused → `npm run local:start` isn't running. (LocalStack never serves `:3000`.)
-- LocalStack "no REST API found" → container restarted and dropped the stack → `npm run stack:deploy`.
-- `sam local` needs a runtime: with colima, export `DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"`.
+- LocalStack "no REST API found" → container restarted and dropped the stack → `npm run stack:deploy` (the `test:e2e` / `tests:perf` entrypoints do this for you).
+- API returns 404 on a new route → the stack wasn't redeployed: LocalStack only updates routes on `npm run stack:deploy`.
+- Playwright complains `BASE_URL is not set` → run it via `npm run test:e2e`, not bare `npx playwright test`.
 - Use `docker-compose` (hyphen, standalone v5); `docker compose` (plugin) isn't installed here.
-- Port 3000 busy → stop the other `sam local start-api` (Playwright reuses it via `reuseExistingServer: true`).
-- Playwright `webServer` timeout on first run → it's pulling `emulation-nodejs*.x`; re-run.
+- Docker not reachable → `scripts/localstack-boot.sh` auto-starts colima (or Docker Desktop on macOS).
+- k6 threshold failures against LocalStack → expected; the emulator, not this code, is what is slow.

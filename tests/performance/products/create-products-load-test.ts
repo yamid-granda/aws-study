@@ -30,7 +30,14 @@ export const options: Options = {
   },
 };
 
-const BASE_URL: string = __ENV.BASE_URL || "http://127.0.0.1:3000";
+const BASE_URL: string = __ENV.BASE_URL ?? "";
+if (!BASE_URL) {
+  throw new Error(
+    "BASE_URL is required — run this test via `npm run tests:perf` or " +
+      "`npm run test:perf:products:docker` (they boot LocalStack and set it), " +
+      "or export BASE_URL=$(npm run -s stack:url).",
+  );
+}
 
 interface CreateProductPayload {
   name: string;

@@ -1,7 +1,7 @@
 # Don't commit until asked
 
 Finishing a task or a fix does not mean committing it. Across `src/functions/`,
-`src/shared/`, `template.yaml`, `events/`, `tests/`, and `scripts/`, leave
+`src/shared/`, `template.yaml`, `tests/`, and `scripts/`, leave
 changes in the working tree — staged or not — once the work is done, and report
 what changed. Do not run `git commit` or `git push` as part of wrapping up a
 task on your own initiative, even if the surrounding conversation encourages

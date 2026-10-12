@@ -1,29 +1,29 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * E2E tests run against SAM Local (`http://127.0.0.1:3000`).
- * The webServer block auto-builds + auto-starts the API if it is not
- * already running, so `npm run test:e2e` works with zero setup
- * (Docker must be running). To manage the API manually, start
- * `npm run local:start` in another terminal — the existing server
- * will be reused (`reuseExistingServer: true`).
+ * E2E tests run against LocalStack, booted by `npm run test:e2e`
+ * (`scripts/e2e-stack.sh`): it starts the emulator, deploys the stack and
+ * exports BASE_URL with the deployed API URL before Playwright starts.
+ *
+ * There is no `webServer` block on purpose — the LocalStack API URL contains
+ * the REST API id, which only exists after a deploy, so it cannot be resolved
+ * while this config is being loaded. Specs turn paths into absolute URLs via
+ * `tests/e2e/api-url.ts` for the same reason (see the note there).
  */
+if (!process.env.BASE_URL) {
+  throw new Error(
+    "BASE_URL is not set — run `npm run test:e2e` (boots LocalStack and sets it) " +
+      "or export BASE_URL=$(npm run -s stack:url).",
+  );
+}
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: true,
   retries: process.env.CI ? 2 : 0,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: process.env.BASE_URL ?? "http://127.0.0.1:3000",
     trace: "on-first-retry",
-  },
-  webServer: {
-    command: "bash scripts/e2e-server.sh",
-    url: "http://127.0.0.1:3000/health",
-    reuseExistingServer: !process.env.CI,
-    timeout: 240 * 1000,
-    stdout: "pipe",
-    stderr: "pipe",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 });
